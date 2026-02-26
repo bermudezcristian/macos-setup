@@ -29,11 +29,18 @@ install_homebrew() {
     if ! command -v brew &>/dev/null; then
         echo "📦 Installing Homebrew..."
         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        # Determine brew path based on architecture
+        local brew_prefix
+        if [ "$(uname -m)" = "arm64" ]; then
+            brew_prefix="/opt/homebrew"
+        else
+            brew_prefix="/usr/local"
+        fi
         # Add brew to zprofile if not already there
         if ! grep -q 'brew shellenv' ~/.zprofile 2>/dev/null; then
-            echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+            echo "eval \"\$(${brew_prefix}/bin/brew shellenv)\"" >> ~/.zprofile
         fi
-        eval "$(/opt/homebrew/bin/brew shellenv)"
+        eval "$(${brew_prefix}/bin/brew shellenv)"
         echo "✅ Homebrew installed."
     else
         echo "✅ Homebrew already installed."
@@ -44,39 +51,14 @@ install_homebrew() {
 }
 
 # -------------------------------
-# 3. Install CLI tools
+# 3. Install packages from Brewfile
 # -------------------------------
-install_cli_tools() {
-    local tools=(
-        fzf
-        gh
-        git
-        glab
-        gnupg
-        htop
-        jq
-        mas
-        neovim
-        nmap
-        pinentry-mac
-        tmux
-        tree
-        vim
-        watch
-        wget
-        zsh-autosuggestions
-        zsh-syntax-highlighting
-    )
-
-    echo "📦 Installing CLI tools: ${tools[*]}"
-    for tool in "${tools[@]}"; do
-        if ! brew list "$tool" &>/dev/null; then
-            echo "🔧 Installing $tool..."
-            brew install "$tool"
-        else
-            echo "✅ $tool is already installed, skipping."
-        fi
-    done
+install_packages() {
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    echo "📦 Installing packages from Brewfile..."
+    brew bundle --file="$script_dir/Brewfile"
+    echo "✅ Brewfile packages installed."
 }
 
 # -------------------------------
@@ -134,13 +116,13 @@ setup_gpg() {
             echo "pinentry-program $pinentry_path" >> "$gpg_conf"
             echo "✅ Added pinentry-mac to gpg-agent.conf"
         fi
+        chmod 600 "$gpg_conf"
     else
         echo "⚠️ pinentry-mac not found in PATH. Skipping configuration."
     fi
 
     # Ensure proper permissions
     chmod 700 ~/.gnupg
-    chmod 600 "$gpg_conf"
 
     # Restart gpg-agent to apply changes
     killall gpg-agent 2>/dev/null || true
@@ -148,41 +130,14 @@ setup_gpg() {
 }
 
 # -------------------------------
-# 7. asdf Installation & Shell Setup
+# 7. asdf Shell Setup
 # -------------------------------
-install_asdf() {
-    if ! brew list asdf &>/dev/null; then
-        echo "🔧 Installing asdf version manager..."
-        brew install asdf
-    else
-        echo "✅ asdf already installed."
-    fi
-
+setup_asdf() {
     # Add to shell config if not already present
     if ! grep -q 'asdf.sh' ~/.zshrc 2>/dev/null; then
         echo "📄 Adding asdf to ~/.zshrc..."
         echo -e '\n. $(brew --prefix asdf)/libexec/asdf.sh' >> ~/.zshrc
     fi
-}
-
-# -------------------------------
-# 8. Install macOS apps (Casks)
-# -------------------------------
-install_casks() {
-    local casks=(
-        font-meslo-lg-nerd-font
-        stats
-    )
-
-    echo "📦 Installing macOS apps (casks): ${casks[*]}"
-    for app in "${casks[@]}"; do
-        if ! brew list --cask "$app" &>/dev/null; then
-            echo "🔧 Installing $app..."
-            brew install --cask "$app"
-        else
-            echo "✅ $app already installed, skipping."
-        fi
-    done
 }
 
 # -------------------------------
@@ -205,14 +160,18 @@ setup_macos_core_defaults() {
 # Main execution function
 # -------------------------------
 main() {
+    # Ensure ~/.zshrc exists before any function appends to it
+    if [ ! -f "$HOME/.zshrc" ]; then
+        echo "# ~/.zshrc - Created by macos-setup" > "$HOME/.zshrc"
+    fi
+
     install_xcode_cli
     install_homebrew
-    install_cli_tools
+    install_packages
     setup_fzf_integration
     setup_zsh_plugins
     setup_gpg
-    install_asdf
-    install_casks
+    setup_asdf
     setup_macos_core_defaults
     echo "🚀 macOS setup complete!"
     echo "🔐 Reminder: Run 'gh auth login' to authenticate GitHub CLI."
