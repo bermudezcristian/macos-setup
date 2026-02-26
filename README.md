@@ -16,7 +16,7 @@ Automates setting up a fresh Mac with developer tools, shell configuration, and 
 ## Usage
 
 ```sh
-git clone https://github.com/yourusername/macos-setup.git
+git clone https://github.com/bermudezcristian/macos-setup.git
 cd macos-setup
 chmod +x setup.sh
 ./setup.sh
